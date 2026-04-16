@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Game - Multiplayer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            padding: 30px;
+            text-align: center;
+            max-width: 700px;
+        }
+
+        h1 {
+            color: #333;
+            margin: 0 0 20px 0;
+        }
+
+        .status {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #667eea;
+        }
+
+        .board-container {
+            display: inline-block;
+            border: 5px solid #333;
+            margin: 20px 0;
+        }
+
+        #chessboard {
+            display: grid;
+            grid-template-columns: repeat(8, 60px);
+            grid-template-rows: repeat(8, 60px);
+            gap: 0;
+            background: #b58863;
+        }
+
+        .square {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        .square.light {
+            background: #f0d9b5;
+        }
+
+        .square.dark {
+            background: #b58863;
+        }
+
+        .square.selected {
+            border: 3px solid red;
+            box-sizing: border-box;
+        }
+
+        .square.legal-move::before {
+            content: '';
+            width: 12px;
+            height: 12px;
+            background: green;
+            border-radius: 50%;
+            position: absolute;
+        }
+
+        .square.legal-capture::before {
+            content: '';
+            width: 16px;
+            height: 16px;
+            background: red;
+            border-radius: 50%;
+            position: absolute;
+        }
+
+        .buttons {
+            margin-top: 20px;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #764ba2;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .game-over {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f0f0f0;
+            border-radius: 5px;
+            color: #333;
+            font-weight: bold;
+            display: none;
+        }
+
+        .ai-thinking {
+            color: #667eea;
+            font-style: italic;
+        }
+
+        .multiplayer-panel {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+        }
+
+        .multiplayer-panel h3 {
+            margin: 0 0 10px 0;
+            color: #495057;
+        }
+
+        .connection-status {
+            font-size: 14px;
+            color: #6c757d;
+            margin-bottom: 10px;
+        }
+
+        .connection-status.connected {
+            color: #28a745;
+        }
+
+        .connection-status.connecting {
+            color: #ffc107;
+        }
+
+        .connection-status.error {
+            color: #dc3545;
+        }
+
+        input[type="text"] {
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 14px;
+            width: 200px;
+            margin-right: 10px;
+        }
+
+        .game-mode {
+            margin-bottom: 15px;
+        }
+
+        .game-mode label {
+            margin-right: 20px;
+            cursor: pointer;
+        }
+
+        .game-mode input[type="radio"] {
+            margin-right: 5px;
+        }
+
+        .instructions {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        .instructions h4 {
+            margin: 0 0 10px 0;
+            color: #495057;
+        }
+
+        .instructions ol {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .instructions li {
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>♟️ Chess Game - Multiplayer ♟️</h1>
+
+        <div class="instructions">
+            <h4>🎮 How to Play with Friends:</h4>
+            <ol>
+                <li>Choose "Online Multiplayer" mode</li>
+                <li>Player 1 clicks "Create Room" and shares the room code</li>
+                <li>Player 2 enters the room code and clicks "Join Room"</li>
+                <li>Exchange connection info through the prompts</li>
+                <li>Start playing! Take turns making moves</li>
+            </ol>
+        </div>
+
+        <div class="multiplayer-panel">
+            <h3>Game Mode</h3>
+            <div class="game-mode">
+                <label>
+                    <input type="radio" name="gameMode" value="ai" checked onchange="setGameMode('ai')">
+                    Play vs AI
+                </label>
+                <label>
+                    <input type="radio" name="gameMode" value="local" onchange="setGameMode('local')">
+                    Local Multiplayer (Same Device)
+                </label>
+                <label>
+                    <input type="radio" name="gameMode" value="online" onchange="setGameMode('online')">
+                    Online Multiplayer (Different Devices)
+                </label>
+            </div>
+
+            <div id="onlinePanel" style="display: none;">
+                <div class="connection-status" id="connectionStatus">Not connected</div>
+                <input type="text" id="roomCode" placeholder="Enter room code" maxlength="6">
+                <button onclick="createRoom()">Create Room</button>
+                <button onclick="joinRoom()">Join Room</button>
+                <button onclick="disconnect()" style="background: #dc3545;">Disconnect</button>
+            </div>
+        </div>
+
+        <div class="status" id="status">White to move</div>
+
+        <div class="board-container">
+            <div id="chessboard"></div>
+        </div>
+
+        <div class="buttons">
+            <button onclick="newGame()">New Game</button>
+            <button onclick="copyGameLink()" id="copyLinkBtn" style="display: none;">Copy Game Link</button>
+        </div>
+
+        <div class="game-over" id="gameOverMessage"></div>
+    </div>
+
+    <script>
+        const chess = new Chess();
+        let selectedSquare = null;
+        let gameMode = 'ai'; // 'ai', 'local', 'online'
+        let isMyTurn = true;
+        let peerConnection = null;
+        let dataChannel = null;
+        let roomCode = null;
+
+        const pieceSymbols = {
+            'P': '♙', 'p': '♟',
+            'R': '♖', 'r': '♜',
+            'N': '♘', 'n': '♞',
+            'B': '♗', 'b': '♝',
+            'Q': '♕', 'q': '♛',
+            'K': '♔', 'k': '♚'
+        };
+
+        // WebRTC Configuration
+        const configuration = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+        };
+
+        function setGameMode(mode) {
+            gameMode = mode;
+            document.getElementById('onlinePanel').style.display = mode === 'online' ? 'block' : 'none';
+            document.getElementById('copyLinkBtn').style.display = mode === 'online' && roomCode ? 'inline-block' : 'none';
+
+            if (mode !== 'online') {
+                disconnect();
+            }
+
+            newGame();
+        }
+
+        function renderBoard() {
+            const board = document.getElementById('chessboard');
+            board.innerHTML = '';
+
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const squareName = String.fromCharCode(97 + col) + (8 - row);
+
+                    const squareEl = document.createElement('div');
+                    squareEl.className = 'square';
+                    squareEl.className += (row + col) % 2 === 0 ? ' light' : ' dark';
+                    squareEl.id = `square-${squareName}`;
+
+                    // Add piece
+                    const piece = chess.get(squareName);
+                    if (piece) {
+                        if (piece.color === 'w') {
+                            squareEl.textContent = pieceSymbols[piece.type.toUpperCase()];
+                        } else {
+                            squareEl.textContent = pieceSymbols[piece.type.toLowerCase()];
+                        }
+                    }
+
+                    // Highlight selected square
+                    if (squareName === selectedSquare) {
+                        squareEl.classList.add('selected');
+                    }
+
+                    // Highlight legal moves
+                    if (selectedSquare && canMove()) {
+                        const moves = chess.moves({ square: selectedSquare, verbose: true });
+                        for (let move of moves) {
+                            if (move.to === squareName) {
+                                if (move.capture) {
+                                    squareEl.classList.add('legal-capture');
+                                } else {
+                                    squareEl.classList.add('legal-move');
+                                }
+                            }
+                        }
+                    }
+
+                    squareEl.addEventListener('click', () => handleSquareClick(squareName));
+                    board.appendChild(squareEl);
+                }
+            }
+
+            updateStatus();
+        }
+
+        function canMove() {
+            if (gameMode === 'ai') return chess.turn() === 'w';
+            if (gameMode === 'local') return true;
+            if (gameMode === 'online') return isMyTurn;
+            return false;
+        }
+
+        function handleSquareClick(square) {
+            if (!canMove()) return;
+
+            if (selectedSquare === null) {
+                const piece = chess.get(square);
+                if (piece && piece.color === chess.turn()) {
+                    selectedSquare = square;
+                    renderBoard();
+                }
+            } else if (selectedSquare === square) {
+                selectedSquare = null;
+                renderBoard();
+            } else {
+                makeMove(selectedSquare, square);
+                selectedSquare = null;
+            }
+        }
+
+        function makeMove(from, to) {
+            const move = chess.move({ from, to, promotion: 'q' });
+            if (move) {
+                renderBoard();
+
+                if (gameMode === 'online' && dataChannel && dataChannel.readyState === 'open') {
+                    dataChannel.send(JSON.stringify({
+                        type: 'move',
+                        move: move.san,
+                        fen: chess.fen()
+                    }));
+                    isMyTurn = false;
+                }
+
+                if (gameMode === 'ai' && !chess.game_over()) {
+                    document.getElementById('status').textContent = 'AI thinking...';
+                    document.getElementById('status').classList.add('ai-thinking');
+                    setTimeout(makeAIMove, 500);
+                }
+            }
+        }
+
+        function makeAIMove() {
+            const moves = chess.moves({ verbose: true });
+            if (moves.length > 0) {
+                const randomMove = moves[Math.floor(Math.random() * moves.length)];
+                chess.move(randomMove);
+                renderBoard();
+                document.getElementById('status').classList.remove('ai-thinking');
+            }
+        }
+
+        function updateStatus() {
+            const statusEl = document.getElementById('status');
+            const gameOverEl = document.getElementById('gameOverMessage');
+
+            if (chess.game_over()) {
+                statusEl.textContent = 'Game Over!';
+                let result = 'Draw';
+                if (chess.in_checkmate()) {
+                    result = chess.turn() === 'w' ? 'Black Wins!' : 'White Wins!';
+                } else if (chess.in_stalemate()) {
+                    result = 'Stalemate';
+                } else if (chess.insufficient_material()) {
+                    result = 'Draw - Insufficient Material';
+                }
+                gameOverEl.textContent = 'Result: ' + result;
+                gameOverEl.style.display = 'block';
+            } else {
+                let turnText = '';
+                if (gameMode === 'ai') {
+                    turnText = chess.turn() === 'w' ? 'Your turn (White)' : 'AI thinking...';
+                } else if (gameMode === 'local') {
+                    turnText = chess.turn() === 'w' ? 'White to move' : 'Black to move';
+                } else if (gameMode === 'online') {
+                    if (isMyTurn) {
+                        turnText = `Your turn (${chess.turn() === 'w' ? 'White' : 'Black'})`;
+                    } else {
+                        turnText = `Waiting for opponent (${chess.turn() === 'w' ? 'White' : 'Black'})`;
+                    }
+                }
+                statusEl.textContent = turnText;
+                statusEl.classList.remove('ai-thinking');
+                gameOverEl.style.display = 'none';
+            }
+        }
+
+        function newGame() {
+            chess.reset();
+            selectedSquare = null;
+            isMyTurn = true;
+            renderBoard();
+        }
+
+        // WebRTC Multiplayer Functions
+        function createRoom() {
+            roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+            document.getElementById('roomCode').value = roomCode;
+            document.getElementById('connectionStatus').textContent = `Room created: ${roomCode}`;
+            document.getElementById('connectionStatus').className = 'connection-status connecting';
+            document.getElementById('copyLinkBtn').style.display = 'inline-block';
+
+            initializeWebRTC(true);
+        }
+
+        function joinRoom() {
+            roomCode = document.getElementById('roomCode').value.toUpperCase();
+            if (!roomCode) {
+                alert('Please enter a room code');
+                return;
+            }
+            document.getElementById('connectionStatus').textContent = `Joining room: ${roomCode}`;
+            document.getElementById('connectionStatus').className = 'connection-status connecting';
+
+            initializeWebRTC(false);
+        }
+
+        function initializeWebRTC(isHost) {
+            peerConnection = new RTCPeerConnection(configuration);
+
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    console.log('ICE candidate:', event.candidate);
+                }
+            };
+
+            peerConnection.onconnectionstatechange = () => {
+                const statusEl = document.getElementById('connectionStatus');
+                statusEl.textContent = `Connection: ${peerConnection.connectionState}`;
+
+                if (peerConnection.connectionState === 'connected') {
+                    statusEl.className = 'connection-status connected';
+                    statusEl.textContent = 'Connected! Game ready.';
+                } else if (peerConnection.connectionState === 'failed') {
+                    statusEl.className = 'connection-status error';
+                    statusEl.textContent = 'Connection failed. Try again.';
+                }
+            };
+
+            if (isHost) {
+                dataChannel = peerConnection.createDataChannel('chess-game');
+                setupDataChannel();
+
+                peerConnection.createOffer().then(offer => {
+                    return peerConnection.setLocalDescription(offer);
+                }).then(() => {
+                    const offerText = JSON.stringify(peerConnection.localDescription);
+                    prompt('Copy this offer and send to your friend:', offerText);
+                });
+            } else {
+                peerConnection.ondatachannel = (event) => {
+                    dataChannel = event.channel;
+                    setupDataChannel();
+                };
+
+                const offerText = prompt('Paste the offer from your friend:');
+                if (offerText) {
+                    try {
+                        const offer = JSON.parse(offerText);
+                        peerConnection.setRemoteDescription(offer).then(() => {
+                            return peerConnection.createAnswer();
+                        }).then(answer => {
+                            return peerConnection.setLocalDescription(answer);
+                        }).then(() => {
+                            const answerText = JSON.stringify(peerConnection.localDescription);
+                            prompt('Copy this answer and send to your friend:', answerText);
+                        });
+                    } catch (e) {
+                        alert('Invalid offer format');
+                    }
+                }
+            }
+        }
+
+        function setupDataChannel() {
+            dataChannel.onopen = () => {
+                console.log('Data channel opened');
+            };
+
+            dataChannel.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'move') {
+                    chess.load(data.fen);
+                    isMyTurn = true;
+                    renderBoard();
+                }
+            };
+        }
+
+        function disconnect() {
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            if (dataChannel) {
+                dataChannel.close();
+                dataChannel = null;
+            }
+            roomCode = null;
+            document.getElementById('connectionStatus').textContent = 'Not connected';
+            document.getElementById('connectionStatus').className = 'connection-status';
+            document.getElementById('copyLinkBtn').style.display = 'none';
+        }
+
+        function copyGameLink() {
+            if (roomCode) {
+                const link = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
+                navigator.clipboard.writeText(link).then(() => {
+                    alert('Game link copied to clipboard!');
+                });
+            }
+        }
+
+        // Check for room code in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlRoomCode = urlParams.get('room');
+        if (urlRoomCode) {
+            document.querySelector('input[name="gameMode"][value="online"]').checked = true;
+            setGameMode('online');
+            document.getElementById('roomCode').value = urlRoomCode;
+        }
+
+        renderBoard();
+    </script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "build": {
+    "command": "echo 'Static site - no build needed'",
+    "publish": "."
+  },
+  "env": {
+    "VITE_API_URL": "@vite_api_url"
+  }
+}

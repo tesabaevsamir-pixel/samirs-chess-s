@@ -1,0 +1,4 @@
+chess
+flask
+flask-cors
+gunicorn

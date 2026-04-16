@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            padding: 30px;
+            text-align: center;
+            max-width: 600px;
+        }
+
+        h1 {
+            color: #333;
+            margin: 0 0 20px 0;
+        }
+
+        .status {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #667eea;
+        }
+
+        .board-container {
+            display: inline-block;
+            border: 5px solid #333;
+            margin: 20px 0;
+        }
+
+        #chessboard {
+            display: grid;
+            grid-template-columns: repeat(8, 60px);
+            grid-template-rows: repeat(8, 60px);
+            gap: 0;
+            background: #b58863;
+        }
+
+        .square {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            box-sizing: border-box;
+        }
+
+        .square.light {
+            background: #f0d9b5;
+        }
+
+        .square.dark {
+            background: #b58863;
+        }
+
+        .square.selected {
+            border: 3px solid red;
+        }
+
+        .square.legal-move::after {
+            content: '';
+            width: 12px;
+            height: 12px;
+            background: green;
+            border-radius: 50%;
+        }
+
+        .square.legal-capture::after {
+            content: '';
+            width: 12px;
+            height: 12px;
+            background: red;
+            border-radius: 50%;
+        }
+
+        .buttons {
+            margin-top: 20px;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #764ba2;
+        }
+
+        .game-over {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f0f0f0;
+            border-radius: 5px;
+            color: #333;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>♟️ Chess Game ♟️</h1>
+        <div class="status" id="status">White to move</div>
+        
+        <div class="board-container">
+            <div id="chessboard"></div>
+        </div>
+
+        <div class="buttons">
+            <button onclick="resetGame()">New Game</button>
+        </div>
+
+        <div class="game-over" id="gameOverMessage" style="display: none;"></div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5000/api';
+        let selectedSquare = null;
+        let legalMoves = [];
+        let gameBoard = {};
+
+        async function initBoard() {
+            const response = await fetch(`${API_URL}/board`);
+            gameBoard = await response.json();
+            renderBoard();
+        }
+
+        function renderBoard() {
+            const boardElement = document.getElementById('chessboard');
+            boardElement.innerHTML = '';
+            
+            // Create squares
+            for (let square = 0; square < 64; square++) {
+                const row = Math.floor(square / 8);
+                const col = square % 8;
+                const displayRow = 7 - row;
+                const displayCol = col;
+
+                const squareElement = document.createElement('div');
+                squareElement.className = 'square';
+                squareElement.className += (row + col) % 2 === 0 ? ' light' : ' dark';
+                squareElement.id = `square-${square}`;
+
+                // Add piece
+                const fen = gameBoard.fen;
+                const square_name = String.fromCharCode(97 + col) + (8 - row);
+                const piece = getPieceAt(square_name, fen);
+                if (piece) {
+                    squareElement.textContent = getPieceSymbol(piece);
+                }
+
+                // Add click handler
+                squareElement.addEventListener('click', () => selectSquare(square, square_name));
+
+                // Highlight if selected
+                if (square === selectedSquare) {
+                    squareElement.classList.add('selected');
+                }
+
+                // Highlight legal moves
+                if (selectedSquare !== null && isLegalMove(selectedSquare, square)) {
+                    if (piece) {
+                        squareElement.classList.add('legal-capture');
+                    } else {
+                        squareElement.classList.add('legal-move');
+                    }
+                }
+
+                boardElement.appendChild(squareElement);
+            }
+
+            updateStatus();
+        }
+
+        function getPieceAt(squareName, fen) {
+            const board = fenToBoard(fen);
+            const col = squareName.charCodeAt(0) - 97;
+            const row = 8 - parseInt(squareName[1]);
+            return board[row * 8 + col] || null;
+        }
+
+        function fenToBoard() {
+            // Simple implementation - in real scenario, use proper chess library
+            const pieces = {};
+            const fen = gameBoard.fen;
+            const rows = fen.split(' ')[0].split('/');
+            let square = 0;
+            for (let row = 0; row < 8; row++) {
+                let col = 0;
+                for (let char of rows[row]) {
+                    if (isNaN(char)) {
+                        const squareName = String.fromCharCode(97 + col) + (8 - row);
+                        pieces[squareName] = char;
+                        col++;
+                    } else {
+                        col += parseInt(char);
+                    }
+                }
+            }
+            return pieces;
+        }
+
+        function getPieceSymbol(piece) {
+            const symbols = {
+                'P': '♙', 'p': '♟',
+                'R': '♖', 'r': '♜',
+                'N': '♘', 'n': '♞',
+                'B': '♗', 'b': '♝',
+                'Q': '♕', 'q': '♛',
+                'K': '♔', 'k': '♚'
+            };
+            return symbols[piece] || piece;
+        }
+
+        function selectSquare(square, squareName) {
+            if (selectedSquare === null) {
+                selectedSquare = square;
+            } else if (selectedSquare === square) {
+                selectedSquare = null;
+            } else {
+                // Try to make move
+                makeMove(selectedSquare, square);
+                selectedSquare = null;
+            }
+            renderBoard();
+        }
+
+        function isLegalMove(fromSquare, toSquare) {
+            const fromName = indexToSquareName(fromSquare);
+            const toName = indexToSquareName(toSquare);
+            return gameBoard.legal_moves.includes(fromName + toName);
+        }
+
+        function indexToSquareName(index) {
+            const col = index % 8;
+            const row = Math.floor(index / 8);
+            return String.fromCharCode(97 + col) + (8 - row);
+        }
+
+        async function makeMove(fromIdx, toIdx) {
+            const fromSquare = indexToSquareName(fromIdx);
+            const toSquare = indexToSquareName(toIdx);
+            const moveUci = fromSquare + toSquare;
+
+            const response = await fetch(`${API_URL}/move`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ move: moveUci })
+            });
+
+            if (response.ok) {
+                gameBoard = await response.json();
+                renderBoard();
+            }
+        }
+
+        function updateStatus() {
+            const statusElement = document.getElementById('status');
+            const gameOverElement = document.getElementById('gameOverMessage');
+
+            if (gameBoard.game_over) {
+                statusElement.textContent = 'Game Over!';
+                gameOverElement.textContent = 'Result: ' + gameBoard.result;
+                gameOverElement.style.display = 'block';
+            } else {
+                const turn = gameBoard.turn === 'white' ? 'White' : 'Black';
+                statusElement.textContent = turn + ' to move';
+                gameOverElement.style.display = 'none';
+            }
+        }
+
+        async function resetGame() {
+            await fetch(`${API_URL}/reset`, { method: 'POST' });
+            selectedSquare = null;
+            await initBoard();
+        }
+
+        // Initialize on load
+        window.addEventListener('load', initBoard);
+    </script>
+</body>
+</html>
